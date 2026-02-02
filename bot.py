@@ -13,27 +13,29 @@ from telegram.ext import (
 )
 
 # --- الإعدادات ---
+# ملاحظة: يفضل دائماً وضع التوكن في Environment Variables بـ Koyeb
 BOT_TOKEN = "1448950819:AAG1a1IrYm7VNAI-vLR2dw_kXlhTZOKGEwc"
 DEVELOPER_ID = 580885943
 
-# مجلد مؤقت (يعمل على الاستضافات السحابية)
+# المجلد المؤقت للبيانات
 TMP_DIR = Path("/tmp") if os.path.exists("/tmp") else Path(".")
 USERS_FILE = TMP_DIR / "bakaloria_users.txt"
 CONFIG_FILE = TMP_DIR / "bakaloria_config.json"
 
-# تحميل أو إنشاء config
-if CONFIG_FILE.exists():
-    with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-        config = json.load(f)
-else:
-    config = {
-        "mandatory_channels": ["@SyriaEduOfficial"],
-        "force_subscription": True
-    }
-    with open(CONFIG_FILE, "w", encoding="utf-8") as f:
-        json.dump(config, f, ensure_ascii=False, indent=2)
+# إعدادات افتراضية
+config = {
+    "mandatory_channels": ["@SyriaEduOfficial"],
+    "force_subscription": True
+}
 
-# تسجيل مستخدم
+if CONFIG_FILE.exists():
+    try:
+        with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+            config.update(json.load(f))
+    except Exception:
+        pass
+
+# --- وظائف مساعدة ---
 def register_user(user_id: int):
     if not USERS_FILE.exists():
         USERS_FILE.write_text("", encoding="utf-8")
@@ -42,53 +44,35 @@ def register_user(user_id: int):
         with open(USERS_FILE, "a", encoding="utf-8") as f:
             f.write(f"{user_id}\n")
 
-# التحقق من الاشتراك
 async def is_subscribed(context: ContextTypes.DEFAULT_TYPE, user_id: int, channels: list) -> bool:
     from telegram.constants import ChatMemberStatus
     for channel in channels:
         try:
             chat_member = await context.bot.get_chat_member(chat_id=channel, user_id=user_id)
-            if chat_member.status not in [
-                ChatMemberStatus.MEMBER,
-                ChatMemberStatus.ADMINISTRATOR,
-                ChatMemberStatus.OWNER
-            ]:
+            if chat_member.status not in [ChatMemberStatus.MEMBER, ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
                 return False
         except Exception:
             return False
     return True
 
-# حفظ الإعدادات
-def save_config():
-    with open(CONFIG_FILE, "w", encoding="utf-8") as f:
-        json.dump(config, f, ensure_ascii=False, indent=2)
-
-# --- المناهج وأسئلة الدورات ---
+# --- المناهج ---
 CURRICULUM = {
     "📚 علمي": {
         "رياضيات": {"الكتاب الرسمي 2026": "http://www.education.gov.sy/ar/images/books/2026/secondary/scientific/math.pdf"},
         "فيزياء": {"الكتاب الرسمي 2026": "http://www.education.gov.sy/ar/images/books/2026/secondary/scientific/physics.pdf"},
-        "كيمياء": {"الكتاب الرسمي 2026": "http://www.education.gov.sy/ar/images/books/2026/secondary/scientific/chemistry.pdf"},
-        "أحياء": {"الكتاب الرسمي 2026": "http://www.education.gov.sy/ar/images/books/2026/secondary/scientific/biology.pdf"},
-        "لغة إنكليزية": {"الكتاب الرسمي 2026": "http://www.education.gov.sy/ar/images/books/2026/secondary/scientific/english.pdf"},
         "أسئلة الدورات": {
-            "رياضيات": {"دورة أولى 2025": "http://www.education.gov.sy/ar/images/exams/2025/bac/scientific/math_d1.pdf"},
-            "فيزياء": {"دورة أولى 2025": "http://www.education.gov.sy/ar/images/exams/2025/bac/scientific/physics_d1.pdf"},
-            "كيمياء": {"دورة ثانية 2025": "http://www.education.gov.sy/ar/images/exams/2025/bac/scientific/chemistry_d2.pdf"}
+            "رياضيات": {"دورة أولى 2025": "http://www.education.gov.sy/ar/images/exams/2025/bac/scientific/math_d1.pdf"}
         }
     },
     "📖 أدبي": {
         "لغة عربية": {"الكتاب الرسمي 2026": "http://www.education.gov.sy/ar/images/books/2026/secondary/literary/arabic.pdf"},
-        "تاريخ": {"الكتاب الرسمي 2026": "http://www.education.gov.sy/ar/images/books/2026/secondary/literary/history.pdf"},
-        "لغة إنكليزية": {"الكتاب الرسمي 2026": "http://www.education.gov.sy/ar/images/books/2026/secondary/literary/english.pdf"},
         "أسئلة الدورات": {
             "لغة عربية": {"دورة أولى 2025": "http://www.education.gov.sy/ar/images/exams/2025/bac/literary/arabic_d1.pdf"}
         }
     }
 }
 
-# --- معالجات الأوامر ---
-
+# --- المعالجات ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     register_user(user_id)
@@ -97,53 +81,56 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not await is_subscribed(context, user_id, config["mandatory_channels"]):
             keyboard = [[InlineKeyboardButton(f"الاشتراك في {ch}", url=f"https://t.me/{ch.lstrip('@')}")] for ch in config["mandatory_channels"]]
             keyboard.append([InlineKeyboardButton("✅ تحقق من الاشتراك", callback_data="check_sub")])
-            await update.message.reply_text("🔔 يجب الاشتراك في القنوات لاستخدام البوت:", reply_markup=InlineKeyboardMarkup(keyboard))
+            await update.message.reply_text("🔔 عذراً! يجب الاشتراك في القنوات التالية أولاً:", reply_markup=InlineKeyboardMarkup(keyboard))
             return
 
     keyboard = [["📚 علمي"], ["📖 أدبي"]]
-    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-    await update.message.reply_text("مرحبًا بك! اختر فرعك الدراسي:", reply_markup=reply_markup)
-
-async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    if query.data == "check_sub":
-        if await is_subscribed(context, query.from_user.id, config["mandatory_channels"]):
-            await query.edit_message_text("✅ تم التحقق! اضغط /start للبدء.")
-        else:
-            await query.answer("❌ لم تشترك بعد!", show_alert=True)
+    await update.message.reply_text("مرحبًا بك في مكتبة البكالوريا! اختر فرعك:", reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True))
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
     text = update.message.text
-    
+    user_id = update.effective_user.id
+
     if text in CURRICULUM:
         subjects = [[s] for s in CURRICULUM[text].keys()]
         subjects.append(["🔙 العودة"])
-        await update.message.reply_text(f"اختر المادة:", reply_markup=ReplyKeyboardMarkup(subjects, resize_keyboard=True))
+        await update.message.reply_text("اختر المادة:", reply_markup=ReplyKeyboardMarkup(subjects, resize_keyboard=True))
         return
 
     if text == "🔙 العودة":
         await start(update, context)
         return
 
-    # بحث في المواد
-    for branch in CURRICULUM:
-        if text in CURRICULUM[branch]:
-            files = CURRICULUM[branch][text]
-            msg = f"📁 ملفات <b>{text}</b>:\n\n"
-            for name, url in files.items():
-                msg += f"• <a href='{url}'>{name}</a>\n"
-            await update.message.reply_text(msg, parse_mode="HTML", disable_web_page_preview=True)
+    # فحص إذا كان النص مادة داخل الفروع
+    for branch_name, branch_data in CURRICULUM.items():
+        if text in branch_data:
+            files = branch_data[text]
+            if text == "أسئلة الدورات":
+                sub_keys = [[k] for k in files.keys()]
+                sub_keys.append(["🔙 العودة"])
+                await update.message.reply_text("اختر مادة الأسئلة:", reply_markup=ReplyKeyboardMarkup(sub_keys, resize_keyboard=True))
+            else:
+                msg = f"📁 <b>ملفات {text}:</b>\n\n"
+                for name, url in files.items():
+                    msg += f"• <a href='{url}'>{name}</a>\n"
+                await update.message.reply_text(msg, parse_mode="HTML", disable_web_page_preview=True)
             return
 
-    await update.message.reply_text("الرجاء اختيار خيار من القائمة.")
+    await update.message.reply_text("يرجى اختيار قسم من القائمة.")
+
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    if query.data == "check_sub":
+        if await is_subscribed(context, query.from_user.id, config["mandatory_channels"]):
+            await query.edit_message_text("✅ تم التحقق بنجاح! أرسل /start للبدء.")
+        else:
+            await query.answer("❌ لم تشترك في جميع القنوات بعد!", show_alert=True)
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
     application = Application.builder().token(BOT_TOKEN).build()
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(button_handler))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     application.run_polling()
-    
