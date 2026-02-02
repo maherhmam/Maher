@@ -23,7 +23,7 @@ CONFIG_FILE = TMP_DIR / "bakaloria_config.json"
 
 # إعدادات القنوات والاشتراك
 config = {
-    "mandatory_channels": ["@SyriaEduOfficial"],
+    "mandatory_channels": ["@IIlIllIlIl"],
     "force_subscription": True
 }
 
